@@ -1,5 +1,8 @@
 package com.practice.booking.exception;
 
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.slf4j.Logger;
@@ -11,6 +14,8 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import tools.jackson.core.JacksonException;
 
 import com.practice.booking.dto.ApiResponse;
 
@@ -24,10 +29,38 @@ public class GlobalExceptionHandler {
 		return clientError(ex.getErrorCode(), request, ex.getMessage());
 	}
 
-	@ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-			MissingRequestHeaderException.class, MethodArgumentTypeMismatchException.class })
-	public ResponseEntity<ApiResponse<Void>> handleInvalidInput(Exception ex, HttpServletRequest request) {
-		return clientError(ErrorCode.INVALID_INPUT, request, ex.getClass().getSimpleName());
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex,
+			HttpServletRequest request) {
+		String reason = ex.getBindingResult().getFieldErrors().stream()
+				.map(error -> error.getField() + " " + error.getDefaultMessage())
+				.collect(Collectors.joining(", ", "Validation failed: ", ""));
+		return clientError(ErrorCode.INVALID_INPUT, request, reason);
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex,
+			HttpServletRequest request) {
+		// Không log message gốc của Jackson vì có thể chứa nguyên giá trị client gửi lên
+		String reason = "Malformed request body";
+		if (ex.getCause() instanceof JacksonException jacksonException && !jacksonException.getPath().isEmpty()) {
+			String path = jacksonException.getPath().stream().map(JacksonException.Reference::getPropertyName)
+					.filter(Objects::nonNull).collect(Collectors.joining("."));
+			reason = "Unreadable value for field: " + path;
+		}
+		return clientError(ErrorCode.INVALID_INPUT, request, reason);
+	}
+
+	@ExceptionHandler(MissingRequestHeaderException.class)
+	public ResponseEntity<ApiResponse<Void>> handleMissingHeader(MissingRequestHeaderException ex,
+			HttpServletRequest request) {
+		return clientError(ErrorCode.INVALID_INPUT, request, "Missing header: " + ex.getHeaderName());
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
+			HttpServletRequest request) {
+		return clientError(ErrorCode.INVALID_INPUT, request, "Invalid value for parameter: " + ex.getName());
 	}
 
 	@ExceptionHandler(Exception.class)

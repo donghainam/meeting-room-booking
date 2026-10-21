@@ -15,6 +15,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import tools.jackson.core.JacksonException;
 
@@ -68,6 +69,13 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
 			HttpServletRequest request) {
 		return clientError(ErrorCode.INVALID_INPUT, request, "Invalid value for parameter: " + ex.getName());
+	}
+
+	// URL không tồn tại: giữ HTTP 404 mặc định, không để rơi vào handler lỗi hệ thống (99)
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<Void> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
+		log.warn("No endpoint {} {}", request.getMethod(), request.getRequestURI());
+		return ResponseEntity.notFound().build();
 	}
 
 	@ExceptionHandler(Exception.class)

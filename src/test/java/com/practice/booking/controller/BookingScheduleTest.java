@@ -135,4 +135,9 @@ class BookingScheduleTest {
 		schedule("?roomId=" + roomId + "&date=2099-01-01").andExpect(status().isOk());
 	}
 
+	@Test
+	void unknownUrl_returns404() throws Exception {
+		mockMvc.perform(get("/api/unknown")).andExpect(status().isNotFound());
+	}
+
 }

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.practice.booking.dto.BookingResponse;
 import com.practice.booking.dto.CreateBookingRequest;
+import com.practice.booking.dto.UpdateBookingRequest;
 import com.practice.booking.entity.Booking;
 import com.practice.booking.entity.BookingStatus;
 import com.practice.booking.entity.Room;
@@ -35,52 +36,101 @@ public class BookingService {
 
 	@Transactional
 	public BookingResponse create(String userId, CreateBookingRequest request) {
-		// Người đặt lấy từ header X-User-Id: bắt buộc có và không quá dài
+		String organizer = requireOrganizer(userId);
+		validateTimeRange(request.startTime(), request.endTime());
+		Room room = lockRoom(request.roomId());
+		validateAgainstRoom(room, request.attendees(), request.startTime(), request.endTime(), null);
+		Booking booking = new Booking(room.getId(), request.title().trim(), organizer, request.attendees(),
+				request.startTime(), request.endTime());
+		return BookingResponse.from(bookingRepository.save(booking));
+	}
+
+	@Transactional
+	public BookingResponse update(String userId, Long id, UpdateBookingRequest request) {
+		String organizer = requireOrganizer(userId);
+		validateTimeRange(request.startTime(), request.endTime());
+		Booking booking = loadModifiableBooking(id, organizer);
+		Room room = lockRoom(booking.getRoomId());
+		validateAgainstRoom(room, request.attendees(), request.startTime(), request.endTime(), booking.getId());
+		booking.update(request.title().trim(), request.attendees(), request.startTime(), request.endTime());
+		return BookingResponse.from(booking);
+	}
+
+	// Người đặt lấy từ header X-User-Id: bắt buộc có và không quá dài
+	private String requireOrganizer(String userId) {
 		String organizer = userId == null ? "" : userId.trim();
 		if (organizer.isEmpty() || organizer.length() > MAX_ORGANIZER_LENGTH) {
 			throw new BusinessException(ErrorCode.INVALID_INPUT,
 					"X-User-Id is blank or longer than " + MAX_ORGANIZER_LENGTH + " characters");
 		}
+		return organizer;
+	}
+
+	private void validateTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
 		// Giờ kết thúc phải sau giờ bắt đầu (BR1)
-		if (!request.endTime().isAfter(request.startTime())) {
+		if (!endTime.isAfter(startTime)) {
 			throw new BusinessException(ErrorCode.INVALID_INPUT,
-					"endTime " + request.endTime() + " is not after startTime " + request.startTime());
+					"endTime " + endTime + " is not after startTime " + startTime);
 		}
 		// Mỗi lượt đặt dài tối đa 4 giờ (BR3)
-		Duration duration = Duration.between(request.startTime(), request.endTime());
+		Duration duration = Duration.between(startTime, endTime);
 		if (duration.compareTo(MAX_DURATION) > 0) {
 			throw new BusinessException(ErrorCode.INVALID_INPUT,
 					"Booking duration " + duration + " exceeds max " + MAX_DURATION);
 		}
-		// Khóa bản ghi phòng cho đến hết transaction: các request đặt cùng phòng phải xếp hàng,
-		// nhờ đó request sau luôn thấy lượt đặt của request trước khi kiểm tra trùng giờ (BR9)
-		Room room = roomRepository.findByIdForUpdate(request.roomId())
-				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-						"Room " + request.roomId() + " does not exist"));
+	}
+
+	// Khóa bản ghi phòng cho đến hết transaction: các request đặt/sửa cùng phòng phải xếp hàng,
+	// nhờ đó request sau luôn thấy lượt đặt của request trước khi kiểm tra trùng giờ (BR9)
+	private Room lockRoom(Long roomId) {
+		return roomRepository.findByIdForUpdate(roomId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Room " + roomId + " does not exist"));
+	}
+
+	// Lấy lượt đặt (đã khóa dòng) để sửa/hủy: chỉ người đặt mới được sửa/hủy (BR7),
+	// và không sửa/hủy lượt đã hủy hoặc đã bắt đầu (BR8)
+	private Booking loadModifiableBooking(Long id, String organizer) {
+		Booking booking = bookingRepository.findByIdForUpdate(id)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Booking " + id + " does not exist"));
+		if (!booking.getOrganizer().equals(organizer)) {
+			throw new BusinessException(ErrorCode.PERMISSION_DENIED,
+					"User '" + organizer + "' is not the organizer of booking " + id);
+		}
+		if (booking.getStatus() == BookingStatus.CANCELLED) {
+			throw new BusinessException(ErrorCode.BOOKING_NOT_MODIFIABLE, "Booking " + id + " is already cancelled");
+		}
+		LocalDateTime now = LocalDateTime.now(clock);
+		if (!booking.getStartTime().isAfter(now)) {
+			throw new BusinessException(ErrorCode.BOOKING_NOT_MODIFIABLE,
+					"Booking " + id + " already started at " + booking.getStartTime() + " (now " + now + ")");
+		}
+		return booking;
+	}
+
+	// Các luật phụ thuộc vào phòng, dùng chung cho đặt mới và sửa.
+	// excludeId: lượt đặt đang sửa, không tính là trùng với chính nó (null khi đặt mới)
+	private void validateAgainstRoom(Room room, Integer attendees, LocalDateTime startTime, LocalDateTime endTime,
+			Long excludeId) {
 		// Phòng đã ngừng hoạt động thì không cho đặt (BR6)
 		if (!room.getActive()) {
 			throw new BusinessException(ErrorCode.ROOM_NOT_AVAILABLE, "Room " + room.getId() + " is inactive");
 		}
 		// Không đặt vào thời điểm đã qua hoặc đang diễn ra; "hiện tại" lấy từ Clock (BR2)
 		LocalDateTime now = LocalDateTime.now(clock);
-		if (!request.startTime().isAfter(now)) {
+		if (!startTime.isAfter(now)) {
 			throw new BusinessException(ErrorCode.TIME_IN_PAST,
-					"startTime " + request.startTime() + " is not after current time " + now);
+					"startTime " + startTime + " is not after current time " + now);
 		}
 		// Số người tham dự không được vượt sức chứa của phòng (BR5)
-		if (request.attendees() > room.getCapacity()) {
-			throw new BusinessException(ErrorCode.EXCEEDS_CAPACITY, "Attendees " + request.attendees()
-					+ " exceed capacity " + room.getCapacity() + " of room " + room.getId());
+		if (attendees > room.getCapacity()) {
+			throw new BusinessException(ErrorCode.EXCEEDS_CAPACITY,
+					"Attendees " + attendees + " exceed capacity " + room.getCapacity() + " of room " + room.getId());
 		}
 		// Phòng đã có lượt đặt khác chồng giờ thì từ chối (BR4)
-		if (bookingRepository.existsOverlap(room.getId(), BookingStatus.BOOKED, request.startTime(),
-				request.endTime())) {
+		if (bookingRepository.existsOverlap(room.getId(), BookingStatus.BOOKED, startTime, endTime, excludeId)) {
 			throw new BusinessException(ErrorCode.ROOM_ALREADY_BOOKED, "Room " + room.getId()
-					+ " already has a booking overlapping " + request.startTime() + " - " + request.endTime());
+					+ " already has a booking overlapping " + startTime + " - " + endTime);
 		}
-		Booking booking = new Booking(room.getId(), request.title().trim(), organizer, request.attendees(),
-				request.startTime(), request.endTime());
-		return BookingResponse.from(bookingRepository.save(booking));
 	}
 
 }

@@ -52,6 +52,13 @@ public class Booking {
 		this.endTime = endTime;
 	}
 
+	public void update(String title, Integer attendees, LocalDateTime startTime, LocalDateTime endTime) {
+		this.title = title;
+		this.attendees = attendees;
+		this.startTime = startTime;
+		this.endTime = endTime;
+	}
+
 	public Long getId() {
 		return id;
 	}

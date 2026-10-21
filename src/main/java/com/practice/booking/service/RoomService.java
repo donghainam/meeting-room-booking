@@ -30,7 +30,7 @@ public class RoomService {
 		String name = request.name().trim();
 		String nameKey = name.toLowerCase(Locale.ROOT);
 		if (roomRepository.existsByNameKey(nameKey)) {
-			throw new BusinessException(ErrorCode.ROOM_NAME_EXISTS);
+			throw new BusinessException(ErrorCode.ROOM_NAME_EXISTS, "Room name '" + name + "' already exists");
 		}
 		try {
 			return RoomResponse.from(roomRepository.saveAndFlush(new Room(name, nameKey, request.capacity())));

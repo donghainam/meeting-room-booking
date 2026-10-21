@@ -1,0 +1,17 @@
+{
+    "hooks": {
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "shell": "powershell",
+                        "command": "Set-Location $env:CLAUDE_PROJECT_DIR; $env:JAVA_HOME=\"$HOME\\.jdks\\ms-17.0.20.1\"; $out = & .\\mvnw.cmd -q compile 2>&1; if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine(($out | Out-String)); exit 2 }",
+                        "statusMessage": "Compiling...",
+                        "timeout": 180
+                    }
+                ]
+            }
+        ]
+    }
+}

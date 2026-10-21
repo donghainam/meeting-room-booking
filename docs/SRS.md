@@ -1,6 +1,6 @@
-# SRS — Meeting Room Booking (v0.3)
+# SRS — Meeting Room Booking (v1.0)
 
-> Trạng thái: **mọi câu hỏi mở đã chốt — chờ ANam duyệt bản cuối**. Chưa code nghiệp vụ trước khi duyệt.
+> Trạng thái: **ĐÃ DUYỆT (ANam, 2026-10-21)**. Thay đổi về sau phải cập nhật file này trước khi sửa code.
 
 ## 1. Mục tiêu
 Cho nhân viên trong công ty đặt phòng họp, tránh hai nhóm cùng đặt một phòng vào cùng một giờ.

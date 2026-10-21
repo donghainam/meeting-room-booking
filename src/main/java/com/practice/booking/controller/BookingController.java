@@ -32,6 +32,11 @@ public class BookingController {
 		return ApiResponse.success(bookingService.create(userId, request));
 	}
 
+	@PostMapping("/{id}/cancel")
+	public ApiResponse<BookingResponse> cancel(@RequestHeader("X-User-Id") String userId, @PathVariable Long id) {
+		return ApiResponse.success(bookingService.cancel(userId, id));
+	}
+
 	@PutMapping("/{id}")
 	public ApiResponse<BookingResponse> update(@RequestHeader("X-User-Id") String userId, @PathVariable Long id,
 			@Valid @RequestBody UpdateBookingRequest request) {

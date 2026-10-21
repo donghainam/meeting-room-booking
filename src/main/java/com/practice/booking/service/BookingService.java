@@ -56,6 +56,14 @@ public class BookingService {
 		return BookingResponse.from(booking);
 	}
 
+	@Transactional
+	public BookingResponse cancel(String userId, Long id) {
+		String organizer = requireOrganizer(userId);
+		Booking booking = loadModifiableBooking(id, organizer);
+		booking.cancel();
+		return BookingResponse.from(booking);
+	}
+
 	// Người đặt lấy từ header X-User-Id: bắt buộc có và không quá dài
 	private String requireOrganizer(String userId) {
 		String organizer = userId == null ? "" : userId.trim();

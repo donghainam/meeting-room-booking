@@ -59,6 +59,10 @@ public class Booking {
 		this.endTime = endTime;
 	}
 
+	public void cancel() {
+		this.status = BookingStatus.CANCELLED;
+	}
+
 	public Long getId() {
 		return id;
 	}

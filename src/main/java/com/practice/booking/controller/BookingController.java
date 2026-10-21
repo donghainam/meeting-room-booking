@@ -1,13 +1,19 @@
 package com.practice.booking.controller;
 
+import java.time.LocalDate;
+import java.util.List;
+
 import jakarta.validation.Valid;
 
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.practice.booking.dto.ApiResponse;
@@ -30,6 +36,12 @@ public class BookingController {
 	public ApiResponse<BookingResponse> create(@RequestHeader("X-User-Id") String userId,
 			@Valid @RequestBody CreateBookingRequest request) {
 		return ApiResponse.success(bookingService.create(userId, request));
+	}
+
+	@GetMapping
+	public ApiResponse<List<BookingResponse>> schedule(@RequestParam Long roomId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+		return ApiResponse.success(bookingService.findSchedule(roomId, date));
 	}
 
 	@PostMapping("/{id}/cancel")

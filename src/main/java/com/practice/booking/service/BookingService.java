@@ -2,7 +2,9 @@ package com.practice.booking.service;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +64,18 @@ public class BookingService {
 		Booking booking = loadModifiableBooking(id, organizer);
 		booking.cancel();
 		return BookingResponse.from(booking);
+	}
+
+	// Lịch của một phòng trong một ngày: chỉ lấy lượt đang BOOKED, kể cả lượt bắt đầu từ hôm trước
+	// hoặc kết thúc sang hôm sau nhưng có phần nằm trong ngày này
+	@Transactional(readOnly = true)
+	public List<BookingResponse> findSchedule(Long roomId, LocalDate date) {
+		if (!roomRepository.existsById(roomId)) {
+			throw new BusinessException(ErrorCode.NOT_FOUND, "Room " + roomId + " does not exist");
+		}
+		return bookingRepository
+				.findSchedule(roomId, BookingStatus.BOOKED, date.atStartOfDay(), date.plusDays(1).atStartOfDay())
+				.stream().map(BookingResponse::from).toList();
 	}
 
 	// Người đặt lấy từ header X-User-Id: bắt buộc có và không quá dài

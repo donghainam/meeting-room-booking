@@ -1,6 +1,7 @@
 package com.practice.booking.repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
@@ -23,6 +24,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 	boolean existsOverlap(@Param("roomId") Long roomId, @Param("status") BookingStatus status,
 			@Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime,
 			@Param("excludeId") Long excludeId);
+
+	// Các lượt đặt của một phòng giao với khoảng [dayStart, dayEnd), sắp xếp theo giờ bắt đầu
+	@Query("select b from Booking b where b.roomId = :roomId and b.status = :status"
+			+ " and b.startTime < :dayEnd and b.endTime > :dayStart order by b.startTime")
+	List<Booking> findSchedule(@Param("roomId") Long roomId, @Param("status") BookingStatus status,
+			@Param("dayStart") LocalDateTime dayStart, @Param("dayEnd") LocalDateTime dayEnd);
 
 	// Khóa dòng lượt đặt cho đến hết transaction, để sửa/hủy cùng một lượt đặt không chạy song song
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

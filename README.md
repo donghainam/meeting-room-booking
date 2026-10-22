@@ -46,7 +46,7 @@ Three things make this workflow work:
 ## Suggested reading order
 
 1. This page, starting with [Who does what](#who-does-what).
-2. [docs/SRS.md](docs/SRS.md): the input specification. The "How to read this document" section at the top explains the notation (BR, D, error codes).
+2. [docs/SRS.md](docs/SRS.md): the input specification. Notation: **A1–A6, U0–U2** are APIs, **BR1–BR9** are business rules (each has a test), **D1–D7** are design decisions, **80–99** are error codes.
 3. [CLAUDE.md](CLAUDE.md): the ground rules between human and AI.
 4. `git log`: watch the AI build one API at a time (A1 → A6, then login and the frontend).
 5. Run the app (see [Quick start](#quick-start)), then read the code in `backend/` and `frontend/`.
@@ -153,7 +153,7 @@ Repo convention: every business rule (BR) has at least one test; BR9 (concurrent
 
 ## Features
 
-Full specification in [docs/SRS.md](docs/SRS.md) (v1.4).
+Full specification in [docs/SRS.md](docs/SRS.md).
 
 | # | Method | Path | Description | Access |
 |---|---|---|---|---|

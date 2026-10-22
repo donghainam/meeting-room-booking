@@ -1,34 +1,4 @@
-# SRS — Meeting Room Booking (v1.4)
-
-## How to read this document
-
-**SRS (Software Requirements Specification)** describes what the system must do, clearly enough that a person, or an AI such as Claude Code, can write the right code without guessing. In this project the SRS is the **single source of truth**: if code or tests disagree with it, stop and ask; do not decide alone. See the [README](../README.md) for how humans and the AI work together.
-
-This document suits people who are new to handing work to an AI: read it to see what a "clear enough" specification looks like (every field has a type and constraints, every rule has its own code and error code, and the order of checks is spelled out).
-
-Quick guide:
-
-| To find out | Read section |
-|---|---|
-| What the system is for | 1 |
-| What data exists and which fields are required | 2 |
-| Who may call which API | 3 |
-| What each API takes and returns | 4 |
-| Business rules, and the order of checks when several are violated | 5 |
-| Time format | 6 |
-| Error codes and logging | 7 |
-| What is deliberately not built | 8 |
-| Why the design is the way it is | 9 |
-
-Notation used in this document:
-
-| Notation | Meaning | Example |
-|---|---|---|
-| U0–U2, A1–A6 | API codes: U = users and login, A = rooms and bookings | A3 = Book a room |
-| BR1–BR9 | **B**usiness **R**ule. Each BR has at least one test in the code | BR4 = No overlapping bookings |
-| D1–D7 | **D**ecision: a design decision already made, with its reason | D3 = locking to prevent double booking |
-| 80–99 | Error codes returned to the client (see section 7) | 93 = room already booked |
-| ADMIN, USER | The two roles: ADMIN manages everything, USER only books rooms and manages their own bookings | |
+# SRS — Meeting Room Booking
 
 ## 1. Goal
 Employees book meeting rooms; no two groups may book the same room at the same time. Admins manage rooms and users.
@@ -182,12 +152,3 @@ Refresh tokens, logout/token revocation, password change, locking/deleting/editi
   - Use `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server` (no third-party JWT library needed).
   - A token that is still valid but whose user no longer exists → 80.
 - **D7 — Passwords**: hashed with BCrypt.
-
-## Change history
-| Version | Date | Content |
-|---|---|---|
-| 1.0 | 2026-10-21 | First approved version |
-| 1.1 | 2026-10-22 | Synced from the A1–A6 code; added order of checks, D4, D5; named the APIs and BRs; tightened wording |
-| 1.2 | 2026-10-22 | ADMIN/USER roles, JWT login (U0), user management (U1, U2), default admin; removed `X-User-Id`; BR7 allows admin; error codes 80, 81; D6, D7 |
-| 1.3 | 2026-10-22 | Split the `attendees` row; clarified: U0 missing/empty/too long → 80, wrong `role` → 90, extra fields ignored, unknown URL without token → 80, wrong Bearer scheme → 80; tightened wording |
-| 1.4 | 2026-10-22 | Presentation only; no change to rules, error codes or API behavior: added "How to read this document" (what an SRS is, quick guide, explanation of BR/D/error-code notation) for people new to working with AI; translated to English |

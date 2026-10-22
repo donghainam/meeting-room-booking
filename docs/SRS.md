@@ -1,162 +1,193 @@
-# SRS — Meeting Room Booking (v1.3)
+# SRS — Meeting Room Booking (v1.4)
 
-## 1. Mục tiêu
-Nhân viên đặt phòng họp; không để hai nhóm trùng phòng, trùng giờ. Admin quản lý phòng và người dùng.
+## How to read this document
 
-## 2. Đối tượng dữ liệu
-Quy ước: **bắt buộc** = không null, String không rỗng. Mọi String (trừ `password`) được bỏ khoảng trắng đầu/cuối trước khi kiểm tra. Trường thừa trong body bị bỏ qua.
+**SRS (Software Requirements Specification)** describes what the system must do, clearly enough that a person, or an AI such as Claude Code, can write the right code without guessing. In this project the SRS is the **single source of truth**: if code or tests disagree with it, stop and ask; do not decide alone. See the [README](../README.md) for how humans and the AI work together.
+
+This document suits people who are new to handing work to an AI: read it to see what a "clear enough" specification looks like (every field has a type and constraints, every rule has its own code and error code, and the order of checks is spelled out).
+
+Quick guide:
+
+| To find out | Read section |
+|---|---|
+| What the system is for | 1 |
+| What data exists and which fields are required | 2 |
+| Who may call which API | 3 |
+| What each API takes and returns | 4 |
+| Business rules, and the order of checks when several are violated | 5 |
+| Time format | 6 |
+| Error codes and logging | 7 |
+| What is deliberately not built | 8 |
+| Why the design is the way it is | 9 |
+
+Notation used in this document:
+
+| Notation | Meaning | Example |
+|---|---|---|
+| U0–U2, A1–A6 | API codes: U = users and login, A = rooms and bookings | A3 = Book a room |
+| BR1–BR9 | **B**usiness **R**ule. Each BR has at least one test in the code | BR4 = No overlapping bookings |
+| D1–D7 | **D**ecision: a design decision already made, with its reason | D3 = locking to prevent double booking |
+| 80–99 | Error codes returned to the client (see section 7) | 93 = room already booked |
+| ADMIN, USER | The two roles: ADMIN manages everything, USER only books rooms and manages their own bookings | |
+
+## 1. Goal
+Employees book meeting rooms; no two groups may book the same room at the same time. Admins manage rooms and users.
+
+## 2. Data objects
+Convention: **required** = not null, and a String must not be empty. Every String (except `password`) is trimmed of leading and trailing whitespace before validation. Extra fields in the body are ignored.
 
 ### User
-| Field | Kiểu | Ràng buộc |
+| Field | Type | Constraints |
 |---|---|---|
-| id | Long | tự sinh |
-| username | String | bắt buộc, 3–50 ký tự, chỉ `a-z A-Z 0-9 . _ -`, duy nhất **không phân biệt hoa/thường** |
-| password | String | bắt buộc, 8–72 ký tự; chỉ lưu dạng băm BCrypt, không bao giờ trả về |
-| role | Enum | `ADMIN` / `USER`, mặc định `USER` |
+| id | Long | auto-generated |
+| username | String | required, 3–50 characters, only `a-z A-Z 0-9 . _ -`, unique **case-insensitively** |
+| password | String | required, 8–72 characters; stored only as a BCrypt hash, never returned |
+| role | Enum | `ADMIN` / `USER`, default `USER` |
 
 ### Room
-| Field | Kiểu | Ràng buộc |
+| Field | Type | Constraints |
 |---|---|---|
-| id | Long | tự sinh |
-| name | String | bắt buộc, ≤ 100 ký tự, duy nhất **không phân biệt hoa/thường** (`Room A` = `room a`) |
-| capacity | Integer | bắt buộc, 1–100 |
-| active | Boolean | luôn `true` khi tạo (bỏ qua giá trị client gửi) |
+| id | Long | auto-generated |
+| name | String | required, ≤ 100 characters, unique **case-insensitively** (`Room A` = `room a`) |
+| capacity | Integer | required, 1–100 |
+| active | Boolean | always `true` on creation (any value sent by the client is ignored) |
 
 ### Booking
-| Field | Kiểu | Ràng buộc |
+| Field | Type | Constraints |
 |---|---|---|
-| id | Long | tự sinh |
-| roomId | Long | bắt buộc, phòng phải tồn tại, không đổi được |
-| title | String | bắt buộc, ≤ 200 ký tự |
-| organizer | String | `username` của người đăng nhập (lấy từ token, client không gửi) |
-| attendees | Integer | bắt buộc, ≥ 1 |
-| startTime | DateTime | bắt buộc |
-| endTime | DateTime | bắt buộc |
-| status | Enum | `BOOKED` khi tạo, `CANCELLED` khi hủy |
+| id | Long | auto-generated |
+| roomId | Long | required, the room must exist, cannot be changed |
+| title | String | required, ≤ 200 characters |
+| organizer | String | `username` of the logged-in user (taken from the token, the client does not send it) |
+| attendees | Integer | required, ≥ 1 |
+| startTime | DateTime | required |
+| endTime | DateTime | required |
+| status | Enum | `BOOKED` on creation, `CANCELLED` once cancelled |
 
-## 3. Phân quyền
+## 3. Authorization
 
-- Mọi API trừ U0 cần header `Authorization: Bearer <token>`. Thiếu, sai scheme, sai, hết hạn token → 80 (kể cả URL không tồn tại).
-- Role không đủ quyền → 92.
+- Every API except U0 needs the header `Authorization: Bearer <token>`. A missing, wrong-scheme, invalid or expired token → 80 (even for a URL that does not exist).
+- A role without enough permission → 92.
 
-| Mã | Tên API | Method | Path | Quyền |
+| Code | API name | Method | Path | Access |
 |---|---|---|---|---|
-| U0 | Đăng nhập | POST | `/api/auth/login` | công khai |
-| U1 | Tạo người dùng | POST | `/api/users` | ADMIN |
-| U2 | Xem danh sách người dùng | GET | `/api/users` | ADMIN |
-| A1 | Tạo phòng | POST | `/api/rooms` | ADMIN |
-| A2 | Xem danh sách phòng | GET | `/api/rooms` | ADMIN, USER |
-| A3 | Đặt phòng | POST | `/api/bookings` | ADMIN, USER |
-| A4 | Sửa lượt đặt | PUT | `/api/bookings/{id}` | người đặt, ADMIN (BR7) |
-| A5 | Hủy lượt đặt | POST | `/api/bookings/{id}/cancel` | người đặt, ADMIN (BR7) |
-| A6 | Xem lịch phòng theo ngày | GET | `/api/bookings?roomId=&date=` | ADMIN, USER |
+| U0 | Log in | POST | `/api/auth/login` | public |
+| U1 | Create a user | POST | `/api/users` | ADMIN |
+| U2 | List users | GET | `/api/users` | ADMIN |
+| A1 | Create a room | POST | `/api/rooms` | ADMIN |
+| A2 | List rooms | GET | `/api/rooms` | ADMIN, USER |
+| A3 | Book a room | POST | `/api/bookings` | ADMIN, USER |
+| A4 | Update a booking | PUT | `/api/bookings/{id}` | organizer, ADMIN (BR7) |
+| A5 | Cancel a booking | POST | `/api/bookings/{id}/cancel` | organizer, ADMIN (BR7) |
+| A6 | View a room's schedule by day | GET | `/api/bookings?roomId=&date=` | ADMIN, USER |
 
-### Tài khoản admin mặc định
-- Khi khởi động, nếu chưa có user `admin` thì tạo `admin` / `ADMIN`, mật khẩu lấy từ `app.admin.password` (mặc định `admin`, không áp luật 8–72 ký tự).
-- Mật khẩu vẫn là `admin` → log `WARN`: "Default admin password in use".
+### Default admin account
+- On startup, if the user `admin` does not exist, create `admin` / `ADMIN` with the password from `app.admin.password` (default `admin`; the 8–72 character rule does not apply).
+- While the password is still `admin`, log a `WARN`: "Default admin password in use".
 
 ## 4. API
 
-- Thành công: HTTP 200, khung D2. `data` là đối tượng vừa tạo/sửa (U1, A1, A3–A5), token (U0) hoặc mảng, có thể rỗng (U2, A2, A6).
-- **U0 Đăng nhập**:
-  - Body: `{ "username": "...", "password": "..." }`. `username` không phân biệt hoa/thường.
-  - Trả `data`: `{ "accessToken": "...", "tokenType": "Bearer", "expiresIn": 3600 }` (giây).
-  - Thiếu, để trống hoặc sai username/password (kể cả password quá 72 byte) → 80; không tiết lộ sai trường nào.
-- **U1 Tạo người dùng**: body `{ "username", "password", "role" }`, `role` không gửi thì là `USER` (được tạo cả `ADMIN`), giá trị khác → 90. Trùng username → 81. Trả `{ id, username, role }`.
-- **U2 Xem danh sách người dùng**: trả `[{ id, username, role }]`, sắp theo `id` tăng dần.
-- **A2 Xem danh sách phòng**: sắp theo `id` tăng dần.
-- **A4 Sửa lượt đặt**: gửi đủ `title`, `attendees`, `startTime`, `endTime` (thay toàn bộ).
-- **A5 Hủy lượt đặt**: không có body; trả lượt đặt với `status = CANCELLED`.
-- **A6 Xem lịch phòng theo ngày**:
-  - `roomId`, `date` (`yyyy-MM-dd`) bắt buộc; phòng không tồn tại → 91.
-  - Trả lượt `BOOKED` giao với `[date 00:00, date+1 00:00)`, sắp theo `startTime`, gồm cả lượt qua nửa đêm.
-  - Lượt kết thúc đúng 00:00 không thuộc ngày sau.
+- Success: HTTP 200, envelope D2. `data` is the object just created/updated (U1, A1, A3–A5), the token (U0), or an array that may be empty (U2, A2, A6).
+- **U0 Log in**:
+  - Body: `{ "username": "...", "password": "..." }`. `username` is case-insensitive.
+  - Returns `data`: `{ "accessToken": "...", "tokenType": "Bearer", "expiresIn": 3600 }` (seconds).
+  - Missing, empty, or wrong username/password (including a password over 72 bytes) → 80; it does not reveal which field was wrong.
+- **U1 Create a user**: body `{ "username", "password", "role" }`; if `role` is omitted it is `USER` (an `ADMIN` can also be created), any other value → 90. Duplicate username → 81. Returns `{ id, username, role }`.
+- **U2 List users**: returns `[{ id, username, role }]`, sorted by `id` ascending.
+- **A2 List rooms**: sorted by `id` ascending.
+- **A4 Update a booking**: send all of `title`, `attendees`, `startTime`, `endTime` (replaces everything).
+- **A5 Cancel a booking**: no body; returns the booking with `status = CANCELLED`.
+- **A6 View a room's schedule by day**:
+  - `roomId` and `date` (`yyyy-MM-dd`) are required; room does not exist → 91.
+  - Returns `BOOKED` bookings that intersect `[date 00:00, date+1 00:00)`, sorted by `startTime`, including bookings that cross midnight.
+  - A booking ending exactly at 00:00 does not belong to the next day.
 
-## 5. Luật nghiệp vụ
+## 5. Business rules
 
-- **BR1 — Giờ kết thúc sau giờ bắt đầu**: `endTime > startTime`.
-- **BR2 — Chỉ đặt trong tương lai**: `startTime > now`, áp dụng cả khi đặt và sửa.
-- **BR3 — Tối đa 4 giờ**: `endTime − startTime ≤ 4h`.
-- **BR4 — Không trùng giờ**: cùng phòng không có 2 lượt `BOOKED` chồng nhau.
-  - `[s1, e1)` và `[s2, e2)` chồng nhau khi `s1 < e2 AND s2 < e1`; chạm mép (09–10 và 10–11) không trùng.
-  - Bỏ qua lượt `CANCELLED` và chính lượt đang sửa.
-- **BR5 — Không vượt sức chứa**: `attendees ≤ capacity`.
-- **BR6 — Phòng phải đang hoạt động**: `active = true` (chưa có API tắt phòng, xem mục 8).
-- **BR7 — Chỉ người đặt hoặc admin được sửa/hủy**: người đăng nhập là `organizer`, hoặc có role `ADMIN`.
-- **BR8 — Chỉ sửa/hủy lượt chưa bắt đầu**: lượt phải `BOOKED` và `startTime > now`.
-- **BR9 — Chống đặt trùng khi gửi đồng thời**: 2 request đặt/sửa chồng giờ cùng phòng gửi cùng lúc → đúng 1 thành công, còn lại 93.
+- **BR1 — End time after start time**: `endTime > startTime`.
+- **BR2 — Future bookings only**: `startTime > now`, applies to both create and update.
+- **BR3 — At most 4 hours**: `endTime − startTime ≤ 4h`.
+- **BR4 — No overlapping bookings**: the same room has no 2 overlapping `BOOKED` bookings.
+  - `[s1, e1)` and `[s2, e2)` overlap when `s1 < e2 AND s2 < e1`; touching edges (09–10 and 10–11) do not overlap.
+  - Ignore `CANCELLED` bookings and the booking being updated.
+- **BR5 — Within room capacity**: `attendees ≤ capacity`.
+- **BR6 — Room must be active**: `active = true` (there is no API to deactivate a room yet, see section 8).
+- **BR7 — Only the organizer or an admin may update/cancel**: the logged-in user is the `organizer`, or has the role `ADMIN`.
+- **BR8 — Only bookings that have not started may be updated/cancelled**: the booking must be `BOOKED` and `startTime > now`.
+- **BR9 — No double booking under concurrent requests**: 2 book/update requests for overlapping times in the same room sent at the same moment → exactly 1 succeeds, the other gets 93.
 
-### Thứ tự kiểm tra
-Vi phạm nhiều luật → trả lỗi của bước đầu tiên. Mọi API (trừ U0) luôn kiểm tra trước: token → 80, role → 92.
+### Order of checks
+When several rules are violated → return the error of the first step. Every API (except U0) always checks first: token → 80, role → 92.
 
-| Bước | A3 Đặt phòng | A4 Sửa lượt đặt | A5 Hủy lượt đặt |
+| Step | A3 Book a room | A4 Update a booking | A5 Cancel a booking |
 |---|---|---|---|
-| 1 | Trường, định dạng → 90 | như A3 | `id` sai kiểu → 90 |
-| 2 | BR1 Giờ kết thúc sau giờ bắt đầu, BR3 Tối đa 4 giờ → 90 | như A3 | Lượt đặt không tồn tại → 91 |
-| 3 | Phòng không tồn tại → 91 | Lượt đặt không tồn tại → 91 | BR7 Chỉ người đặt hoặc admin được sửa/hủy → 92 |
-| 4 | BR6 Phòng phải đang hoạt động → 96 | BR7 Chỉ người đặt hoặc admin được sửa/hủy → 92 | BR8 Chỉ sửa/hủy lượt chưa bắt đầu → 97 |
-| 5 | BR2 Chỉ đặt trong tương lai → 94 | BR8 Chỉ sửa/hủy lượt chưa bắt đầu → 97 | |
-| 6 | BR5 Không vượt sức chứa → 95 | BR6, BR2, BR5 như A3 | |
-| 7 | BR4 Không trùng giờ → 93 | BR4 Không trùng giờ → 93 | |
+| 1 | Fields, format → 90 | same as A3 | `id` of the wrong type → 90 |
+| 2 | BR1 End time after start time, BR3 At most 4 hours → 90 | same as A3 | Booking does not exist → 91 |
+| 3 | Room does not exist → 91 | Booking does not exist → 91 | BR7 Only the organizer or an admin may update/cancel → 92 |
+| 4 | BR6 Room must be active → 96 | BR7 Only the organizer or an admin may update/cancel → 92 | BR8 Only bookings that have not started may be updated/cancelled → 97 |
+| 5 | BR2 Future bookings only → 94 | BR8 Only bookings that have not started may be updated/cancelled → 97 | |
+| 6 | BR5 Within room capacity → 95 | BR6, BR2, BR5 as in A3 | |
+| 7 | BR4 No overlapping bookings → 93 | BR4 No overlapping bookings → 93 | |
 
-Ví dụ: user khác hủy lượt đã hủy → 92, vì BR7 đứng trước BR8.
+Example: another user cancels an already-cancelled booking → 92, because BR7 comes before BR8.
 
-## 6. Thời gian
-- Request và response dùng `yyyy-MM-ddTHH:mm:ss`, không offset (vd `2026-10-22T09:00:00`). Gửi kèm offset → 90.
-- `now` tính theo múi giờ ứng dụng (D1).
+## 6. Time
+- Requests and responses use `yyyy-MM-ddTHH:mm:ss`, no offset (e.g. `2026-10-22T09:00:00`). Sending an offset → 90.
+- `now` is computed in the application time zone (D1).
 
-## 7. Lỗi trả về
+## 7. Errors
 
 ```json
 { "code": "90", "message": "Invalid data input. Please try again" }
 ```
 
-| Mã | HTTP | Message | Khi nào |
+| Code | HTTP | Message | When |
 |---|---|---|---|
-| 80 | 401 | Unauthorized | Thiếu/sai/hết hạn token; đăng nhập sai, thiếu hoặc để trống username/password |
-| 81 | 409 | Username already exists | Trùng username (kể cả gửi đồng thời) |
-| 90 | 400 | Invalid data input. Please try again | Thiếu/sai trường, sai định dạng, JSON hỏng, thiếu param, BR1 Giờ kết thúc sau giờ bắt đầu, BR3 Tối đa 4 giờ |
-| 91 | 404 | Resource not found | Không thấy phòng / lượt đặt |
-| 92 | 403 | Permission denied | Role không đủ quyền; BR7 Chỉ người đặt hoặc admin được sửa/hủy |
-| 93 | 409 | Room is already booked for this time | BR4 Không trùng giờ, BR9 Chống đặt trùng khi gửi đồng thời |
-| 94 | 422 | Booking time must be in the future | BR2 Chỉ đặt trong tương lai |
-| 95 | 422 | Attendees exceed room capacity | BR5 Không vượt sức chứa |
-| 96 | 422 | Room is not available | BR6 Phòng phải đang hoạt động |
-| 97 | 422 | Booking can no longer be modified | BR8 Chỉ sửa/hủy lượt chưa bắt đầu |
-| 98 | 409 | Room name already exists | Trùng tên phòng (kể cả gửi đồng thời) |
-| 99 | 500 | System error. Please try again later | Lỗi ngoài dự kiến |
+| 80 | 401 | Unauthorized | Missing/invalid/expired token; wrong, missing or empty username/password on login |
+| 81 | 409 | Username already exists | Duplicate username (including concurrent requests) |
+| 90 | 400 | Invalid data input. Please try again | Missing/invalid field, wrong format, malformed JSON, missing param, BR1 End time after start time, BR3 At most 4 hours |
+| 91 | 404 | Resource not found | Room / booking not found |
+| 92 | 403 | Permission denied | Role without enough permission; BR7 Only the organizer or an admin may update/cancel |
+| 93 | 409 | Room is already booked for this time | BR4 No overlapping bookings, BR9 No double booking under concurrent requests |
+| 94 | 422 | Booking time must be in the future | BR2 Future bookings only |
+| 95 | 422 | Attendees exceed room capacity | BR5 Within room capacity |
+| 96 | 422 | Room is not available | BR6 Room must be active |
+| 97 | 422 | Booking can no longer be modified | BR8 Only bookings that have not started may be updated/cancelled |
+| 98 | 409 | Room name already exists | Duplicate room name (including concurrent requests) |
+| 99 | 500 | System error. Please try again later | Unexpected error |
 
-- Message cố định theo bảng.
-- URL không tồn tại: có token hợp lệ → HTTP 404, body rỗng (không theo D2); không có → 80.
+- Messages are fixed as in the table.
+- Unknown URL: with a valid token → HTTP 404 with an empty body (not in the D2 envelope); without one → 80.
 
 Logging:
-- 80–98: `WARN` một dòng (mã + path + lý do), không stacktrace. Lỗi 90 chỉ log tên trường/header/param, không log giá trị client gửi.
-- 99: `ERROR` kèm stacktrace; client chỉ nhận message chung.
-- Không bao giờ log `password` hay token.
+- 80–98: one `WARN` line (code + path + reason), no stack trace. A 90 error only logs the field/header/param name, never the value the client sent.
+- 99: `ERROR` with stack trace; the client only receives the generic message.
+- Never log a `password` or a token.
 
-## 8. Ngoài phạm vi
-Refresh token, đăng xuất/thu hồi token, đổi mật khẩu, khóa/xóa/sửa user, lặp lịch định kỳ, email mời họp, phân trang, tắt/xóa/sửa phòng.
+## 8. Out of scope
+Refresh tokens, logout/token revocation, password change, locking/deleting/editing users, recurring bookings, email invitations, pagination, disabling/deleting/editing rooms.
 
-## 9. Quyết định thiết kế
-- **D1 — Múi giờ**: cố định `Asia/Ho_Chi_Minh` (`app.timezone`), lấy `now` qua bean `Clock`.
-- **D2 — Khung response**: thành công `{ "code": "00", "message": "Success", "data": { } }`; lỗi theo mục 7, không có `data`. Lỗi 80/92 phát sinh ở tầng Spring Security cũng phải trả đúng khung này.
-- **D3 — Khóa cho BR9**: `SELECT ... FOR UPDATE` trong transaction, trước khi kiểm tra trùng giờ.
-  - A3 Đặt phòng: khóa phòng.
-  - A4 Sửa lượt đặt: khóa lượt đặt rồi phòng (cố định thứ tự, tránh deadlock).
-  - A5 Hủy lượt đặt: khóa lượt đặt.
-  - Bắt buộc test 2 request đồng thời cho A3, A4.
-- **D4 — Tên phòng duy nhất**: cột `nameKey` (name viết thường) có unique constraint; kiểm tra trước khi lưu, constraint chặn trường hợp đồng thời → 98.
-- **D5 — Lưu trữ**: H2 in-memory, mất dữ liệu khi restart (user tạo thêm cũng mất; admin mặc định được tạo lại).
-- **D6 — Xác thực**: JWT ký HS256, hạn 1 giờ, payload gồm `sub` (username) và `role`.
-  - Secret lấy từ cấu hình `app.jwt.secret` (≥ 32 byte); không commit secret thật.
-  - Dùng `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server` (không cần thư viện JWT bên thứ ba).
-  - Token còn hạn nhưng user không còn tồn tại → 80.
-- **D7 — Mật khẩu**: băm bằng BCrypt.
+## 9. Design decisions
+- **D1 — Time zone**: fixed to `Asia/Ho_Chi_Minh` (`app.timezone`); `now` comes from a `Clock` bean.
+- **D2 — Response envelope**: success `{ "code": "00", "message": "Success", "data": { } }`; errors as in section 7, without `data`. Errors 80/92 raised in the Spring Security layer must also return exactly this envelope.
+- **D3 — Locking for BR9**: `SELECT ... FOR UPDATE` in a transaction, before the overlap check.
+  - A3 Book a room: lock the room.
+  - A4 Update a booking: lock the booking, then the room (fixed order, to avoid deadlock).
+  - A5 Cancel a booking: lock the booking.
+  - A test with 2 concurrent requests is mandatory for A3 and A4.
+- **D4 — Unique room name**: a `nameKey` column (name in lowercase) has a unique constraint; checked before saving, and the constraint catches the concurrent case → 98.
+- **D5 — Storage**: H2 in-memory, data is lost on restart (extra users are lost too; the default admin is recreated).
+- **D6 — Authentication**: JWT signed with HS256, 1-hour expiry, payload contains `sub` (username) and `role`.
+  - The secret comes from the `app.jwt.secret` setting (≥ 32 bytes); never commit a real secret.
+  - Use `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server` (no third-party JWT library needed).
+  - A token that is still valid but whose user no longer exists → 80.
+- **D7 — Passwords**: hashed with BCrypt.
 
-## Lịch sử thay đổi
-| Version | Ngày | Nội dung |
+## Change history
+| Version | Date | Content |
 |---|---|---|
-| 1.0 | 2026-10-21 | Bản duyệt đầu tiên |
-| 1.1 | 2026-10-22 | Đồng bộ từ code A1–A6; thêm thứ tự kiểm tra, D4, D5; đặt tên cho API và BR; rút gọn câu chữ |
-| 1.2 | 2026-10-22 | Phân quyền ADMIN/USER, đăng nhập JWT (U0), quản lý user (U1, U2), admin mặc định; bỏ `X-User-Id`; BR7 cho phép admin; mã lỗi 80, 81; D6, D7 |
-| 1.3 | 2026-10-22 | Tách dòng `attendees`; làm rõ: U0 thiếu/trống/quá dài → 80, `role` sai → 90, trường thừa bị bỏ qua, URL lạ không token → 80, sai scheme Bearer → 80; rút gọn câu chữ |
+| 1.0 | 2026-10-21 | First approved version |
+| 1.1 | 2026-10-22 | Synced from the A1–A6 code; added order of checks, D4, D5; named the APIs and BRs; tightened wording |
+| 1.2 | 2026-10-22 | ADMIN/USER roles, JWT login (U0), user management (U1, U2), default admin; removed `X-User-Id`; BR7 allows admin; error codes 80, 81; D6, D7 |
+| 1.3 | 2026-10-22 | Split the `attendees` row; clarified: U0 missing/empty/too long → 80, wrong `role` → 90, extra fields ignored, unknown URL without token → 80, wrong Bearer scheme → 80; tightened wording |
+| 1.4 | 2026-10-22 | Presentation only; no change to rules, error codes or API behavior: added "How to read this document" (what an SRS is, quick guide, explanation of BR/D/error-code notation) for people new to working with AI; translated to English |

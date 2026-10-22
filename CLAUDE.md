@@ -1,44 +1,44 @@
 # CLAUDE.md — meeting-room-booking
 
 ## Project
-Dự án mục đích cho nhân viên đặt phòng họp. Stack chính Java Spring Boot 4; Java 17; Database H2
+A project for employees to book meeting rooms. Main stack: Java Spring Boot 4; Java 17; H2 database.
 
 ## Requirements
-- Follow up theo docs/SRS.md.
-- Khi SRS và code mâu thuẫn hỏi lại, không tự quyết định.
+- Follow docs/SRS.md.
+- When the SRS and the code disagree, ask; do not decide on your own.
 
-## Cấu trúc thư mục
-- `backend/`: Spring Boot (pom.xml, mvnw, src/). Mọi lệnh Maven chạy trong thư mục này.
+## Folder structure
+- `backend/`: Spring Boot (pom.xml, mvnw, src/). Run every Maven command in this folder.
 - `frontend/`: React + Vite + TypeScript.
-- `docs/`: SRS. Gốc repo chỉ giữ README, CLAUDE.md, docs/, `.claude/` và cấu hình git.
+- `docs/`: the SRS. The repo root only holds README, CLAUDE.md, docs/, `.claude/` and git config.
 
 ## Build & test
-- JDK 17 tại `~/.jdks/ms-17.0.20.1` (PATH đang là Java 8, KHÔNG dùng)
+- JDK 17 is at `~/.jdks/ms-17.0.20.1` (PATH currently points to Java 8, do NOT use it)
 - Compile: `cd backend; $env:JAVA_HOME="$HOME\.jdks\ms-17.0.20.1"; .\mvnw.cmd -q compile`
 - Test:    `cd backend; $env:JAVA_HOME="$HOME\.jdks\ms-17.0.20.1"; .\mvnw.cmd -q test`
 
 ## Code conventions
-- Package: Theo tầng (controller/, service/, repository/)
-- DTO: [Action][Entity]Request.java/ [Entity]Response.java
-- Response: Khung response 
+- Package: by layer (controller/, service/, repository/)
+- DTO: [Action][Entity]Request.java / [Entity]Response.java
+- Response: response envelope
     ```json
     { "code": "00", "message": "Success", "data": { } }
     ```
-- Errors: Trả về mã lỗi theo từng case, Mã lỗi định nghĩa enum ErrorCode (gồm code, message, httpStatus) + một BusinessException(ErrorCode) + một @RestControllerAdvice xử lý tập trung
-- Time: Lấy giờ hiện tại qua bean Clock (ZoneId Asia/Ho_Chi_Minh) được inject. Cấm gọi LocalDateTime.now() trực tiếp.
+- Errors: return an error code for each case. Error codes are defined in an `ErrorCode` enum (code, message, httpStatus) + one `BusinessException(ErrorCode)` + one `@RestControllerAdvice` that handles them centrally
+- Time: get the current time through an injected `Clock` bean (ZoneId Asia/Ho_Chi_Minh). Calling LocalDateTime.now() directly is forbidden.
 
 ## Testing
-- Mỗi BR trong SRS có ít nhất 1 test, tên test ghi mã BR (ví dụ br4_overlap_returns93). BR9 bắt buộc có test 2 request đồng thời.
+- Every BR in the SRS has at least 1 test, and the test name includes the BR code (e.g. br4_overlap_returns93). BR9 must have a test with 2 concurrent requests.
 
 ## Workflow
-1. Đọc SRS + code liên quan, lập plan
-2. Trình plan, chờ ANam duyệt
-3. Code theo plan
-4. Compile + test, dán output
-5. Báo cáo: đã làm gì, BR nào đã có test
+1. Read the SRS + relevant code, make a plan
+2. Present the plan, wait for ANam to approve
+3. Code following the plan
+4. Compile + test, paste the output
+5. Report: what was done, which BRs now have tests
 
 ## Never
-- Không báo "xong" khi chưa dán output compile/test.
-- Không sửa docs/SRS.md khi chưa hỏi.
-- Không thêm dependency mới khi chưa hỏi.
-- Không sửa/xóa test để cho pass. Test fail mà nghi do SRS mơ hồ thì dừng lại hỏi.
+- Never say "done" before pasting the compile/test output.
+- Never edit docs/SRS.md without asking first.
+- Never add a new dependency without asking first.
+- Never edit/delete tests to make them pass. If a test fails and you suspect the SRS is ambiguous, stop and ask.

@@ -1,32 +1,35 @@
-# React + TypeScript + Vite
+# Frontend — Meeting Room Booking
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The web UI of the meeting room booking app. This project is a **code-with-AI** exercise for people new to AI: all frontend code was written by Claude Code, while humans approved the plans and accepted the results. For the background, the workflow and the specification, see the [root README](../README.md) and [docs/SRS.md](../docs/SRS.md).
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Log in, view and create rooms, view a room's schedule by day, create/update/cancel bookings, see all rooms' bookings for one day, and (ADMIN only) create and list users. See the SRS for the details of each API.
 
-## React Compiler
+## Technology
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+React 19, TypeScript, Vite, tested with Vitest + Testing Library, linted with Oxlint.
 
-## Expanding the Oxlint configuration
+## Run
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+Requires Node.js 22.12 or later and the backend running on port 8082 (see the [root README](../README.md#quick-start)).
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev       # http://localhost:5173
+npm test          # run tests (Vitest)
+npm run build     # type-check and build
+npm run lint      # Oxlint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The dev server forwards `/api` requests to the backend (default `http://localhost:8082`, change it with the `BACKEND_URL` environment variable), so no CORS setup is needed.
+
+## Structure of `src/`
+
+| Folder / file | Role |
+|---|---|
+| `api/` | Functions that call the backend, grouped by area (auth, rooms, bookings, users), plus the shared `client.ts` |
+| `auth/` | Stores the login session (token in `sessionStorage`) |
+| `components/` | Screens and forms; tests sit next to each component (`*.test.tsx`) |
+| `styles/` | `tokens.css` (colors, font sizes, …) and `app.css` |
+| `time.ts`, `validation.ts`, `errors.ts`, `types.ts` | Time handling, input validation, error-code mapping, shared types |

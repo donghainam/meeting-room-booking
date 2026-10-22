@@ -7,10 +7,15 @@ Dự án mục đích cho nhân viên đặt phòng họp. Stack chính Java Spr
 - Follow up theo docs/SRS.md.
 - Khi SRS và code mâu thuẫn hỏi lại, không tự quyết định.
 
+## Cấu trúc thư mục
+- `backend/`: Spring Boot (pom.xml, mvnw, src/). Mọi lệnh Maven chạy trong thư mục này.
+- `frontend/`: React + Vite + TypeScript.
+- `docs/`: SRS. Gốc repo chỉ giữ README, CLAUDE.md, docs/, `.claude/` và cấu hình git.
+
 ## Build & test
 - JDK 17 tại `~/.jdks/ms-17.0.20.1` (PATH đang là Java 8, KHÔNG dùng)
-- Compile: `$env:JAVA_HOME="$HOME\.jdks\ms-17.0.20.1"; .\mvnw.cmd -q compile`
-- Test:    `$env:JAVA_HOME="$HOME\.jdks\ms-17.0.20.1"; .\mvnw.cmd -q test`
+- Compile: `cd backend; $env:JAVA_HOME="$HOME\.jdks\ms-17.0.20.1"; .\mvnw.cmd -q compile`
+- Test:    `cd backend; $env:JAVA_HOME="$HOME\.jdks\ms-17.0.20.1"; .\mvnw.cmd -q test`
 
 ## Code conventions
 - Package: Theo tầng (controller/, service/, repository/)

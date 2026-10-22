@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.practice.booking.TestTokens;
 import com.practice.booking.repository.RoomRepository;
 
 @SpringBootTest
@@ -24,6 +25,9 @@ class RoomControllerTest {
 	private MockMvc mockMvc;
 
 	@Autowired
+	private TestTokens tokens;
+
+	@Autowired
 	private RoomRepository roomRepository;
 
 	@BeforeEach
@@ -32,7 +36,7 @@ class RoomControllerTest {
 	}
 
 	private ResultActions createRoom(String body) throws Exception {
-		return mockMvc.perform(post("/api/rooms").contentType(MediaType.APPLICATION_JSON).content(body));
+		return mockMvc.perform(post("/api/rooms").header("Authorization", tokens.bearer("admin")).contentType(MediaType.APPLICATION_JSON).content(body));
 	}
 
 	@Test
@@ -125,7 +129,7 @@ class RoomControllerTest {
 		createRoom("{\"name\":\"Room A\",\"capacity\":10}");
 		createRoom("{\"name\":\"Room B\",\"capacity\":20}");
 
-		mockMvc.perform(get("/api/rooms"))
+		mockMvc.perform(get("/api/rooms").header("Authorization", tokens.bearer("admin")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.code").value("00"))
 				.andExpect(jsonPath("$.data.length()").value(2))
@@ -135,14 +139,15 @@ class RoomControllerTest {
 
 	@Test
 	void a2_listRooms_emptyReturnsEmptyArray() throws Exception {
-		mockMvc.perform(get("/api/rooms"))
+		mockMvc.perform(get("/api/rooms").header("Authorization", tokens.bearer("admin")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.length()").value(0));
 	}
 
 	@Test
-	void a2_xUserIdHeaderNotRequired() throws Exception {
-		mockMvc.perform(get("/api/rooms")).andExpect(status().isOk());
+	void a2_userRoleCanListRooms() throws Exception {
+		mockMvc.perform(get("/api/rooms").header("Authorization", tokens.bearer("alice")))
+				.andExpect(status().isOk());
 	}
 
 }

@@ -1,6 +1,7 @@
 package com.practice.booking.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.practice.booking.TestTokens;
 import com.practice.booking.entity.Booking;
 import com.practice.booking.entity.Room;
 import com.practice.booking.repository.BookingRepository;
@@ -26,6 +28,9 @@ class BookingScheduleTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private TestTokens tokens;
 
 	@Autowired
 	private RoomRepository roomRepository;
@@ -51,7 +56,7 @@ class BookingScheduleTest {
 	}
 
 	private ResultActions schedule(String query) throws Exception {
-		return mockMvc.perform(get("/api/bookings" + query));
+		return mockMvc.perform(get("/api/bookings" + query).header("Authorization", tokens.bearer("alice")));
 	}
 
 	@Test
@@ -131,13 +136,17 @@ class BookingScheduleTest {
 	}
 
 	@Test
-	void a6_schedule_userIdHeaderNotRequired() throws Exception {
-		schedule("?roomId=" + roomId + "&date=2099-01-01").andExpect(status().isOk());
+	void a6_schedule_noToken_returns80() throws Exception {
+		mockMvc.perform(get("/api/bookings?roomId=" + roomId + "&date=2099-01-01"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("80"));
 	}
 
 	@Test
 	void unknownUrl_returns404() throws Exception {
-		mockMvc.perform(get("/api/unknown")).andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/unknown").header("Authorization", tokens.bearer("alice")))
+				.andExpect(status().isNotFound())
+				.andExpect(content().string(""));
 	}
 
 }

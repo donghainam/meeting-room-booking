@@ -13,6 +13,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.practice.booking.TestTokens;
 import com.practice.booking.repository.RoomRepository;
 
 @SpringBootTest
@@ -22,6 +23,9 @@ class SystemErrorTest {
 	@Autowired
 	private MockMvc mockMvc;
 
+	@Autowired
+	private TestTokens tokens;
+
 	@MockitoBean
 	private RoomRepository roomRepository;
 
@@ -29,7 +33,7 @@ class SystemErrorTest {
 	void unexpectedError_returns99WithoutLeakingDetails() throws Exception {
 		when(roomRepository.findAllByOrderByIdAsc()).thenThrow(new IllegalStateException("db password leaked"));
 
-		mockMvc.perform(get("/api/rooms"))
+		mockMvc.perform(get("/api/rooms").header("Authorization", tokens.bearer("alice")))
 				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.code").value("99"))
 				.andExpect(jsonPath("$.message").value("System error. Please try again later"))

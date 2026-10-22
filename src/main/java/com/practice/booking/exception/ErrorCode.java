@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
 
+	UNAUTHORIZED("80", "Unauthorized", HttpStatus.UNAUTHORIZED),
+	USERNAME_EXISTS("81", "Username already exists", HttpStatus.CONFLICT),
 	INVALID_INPUT("90", "Invalid data input. Please try again", HttpStatus.BAD_REQUEST),
 	NOT_FOUND("91", "Resource not found", HttpStatus.NOT_FOUND),
 	PERMISSION_DENIED("92", "Permission denied", HttpStatus.FORBIDDEN),

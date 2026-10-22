@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.practice.booking.TestTokens;
 import com.practice.booking.entity.Booking;
 import com.practice.booking.entity.BookingStatus;
 import com.practice.booking.entity.Room;
@@ -28,6 +29,9 @@ class BookingCancelTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private TestTokens tokens;
 
 	@Autowired
 	private RoomRepository roomRepository;
@@ -53,7 +57,7 @@ class BookingCancelTest {
 	private ResultActions cancel(String userId, Object id) throws Exception {
 		var request = post("/api/bookings/" + id + "/cancel").contentType(MediaType.APPLICATION_JSON);
 		if (userId != null) {
-			request.header("X-User-Id", userId);
+			request.header("Authorization", tokens.bearer(userId));
 		}
 		return mockMvc.perform(request);
 	}
@@ -73,16 +77,16 @@ class BookingCancelTest {
 	void a5_cancelFreesTheSlot() throws Exception {
 		Long id = existingBooking("2099-01-01T09:00:00", "2099-01-01T10:00:00");
 		cancel("alice", id).andExpect(status().isOk());
-		mockMvc.perform(post("/api/bookings").header("X-User-Id", "bob").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post("/api/bookings").header("Authorization", tokens.bearer("bob")).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"roomId\":" + roomId + ",\"title\":\"Sync\",\"attendees\":5,"
 						+ "\"startTime\":\"2099-01-01T09:00:00\",\"endTime\":\"2099-01-01T10:00:00\"}"))
 				.andExpect(status().isOk());
 	}
 
 	@Test
-	void a5_missingUserId_returns90() throws Exception {
+	void a5_noToken_returns80() throws Exception {
 		Long id = existingBooking("2099-01-01T09:00:00", "2099-01-01T10:00:00");
-		cancel(null, id).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("90"));
+		cancel(null, id).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("80"));
 	}
 
 	@Test
@@ -114,6 +118,20 @@ class BookingCancelTest {
 		Long id = existingBooking("2000-01-01T09:00:00", "2000-01-01T10:00:00");
 		cancel("alice", id).andExpect(status().is(422)).andExpect(jsonPath("$.code").value("97"));
 		assertEquals(BookingStatus.BOOKED, bookingRepository.findById(id).orElseThrow().getStatus());
+	}
+
+	@Test
+	void br7_adminCanCancelOthersBooking() throws Exception {
+		Long id = existingBooking("2099-01-01T09:00:00", "2099-01-01T10:00:00");
+		cancel("admin", id).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("CANCELLED"));
+		assertEquals(BookingStatus.CANCELLED, bookingRepository.findById(id).orElseThrow().getStatus());
+	}
+
+	@Test
+	void br7_otherUserOnCancelledBooking_returns92NotBr8() throws Exception {
+		Long id = existingBooking("2099-01-01T09:00:00", "2099-01-01T10:00:00");
+		cancel("alice", id).andExpect(status().isOk());
+		cancel("bob", id).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("92"));
 	}
 
 }

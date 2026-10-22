@@ -24,7 +24,6 @@ import com.practice.booking.repository.RoomRepository;
 public class BookingService {
 
 	private static final Duration MAX_DURATION = Duration.ofHours(4);
-	private static final int MAX_ORGANIZER_LENGTH = 100;
 
 	private final BookingRepository bookingRepository;
 	private final RoomRepository roomRepository;
@@ -37,8 +36,7 @@ public class BookingService {
 	}
 
 	@Transactional
-	public BookingResponse create(String userId, CreateBookingRequest request) {
-		String organizer = requireOrganizer(userId);
+	public BookingResponse create(String organizer, CreateBookingRequest request) {
 		validateTimeRange(request.startTime(), request.endTime());
 		Room room = lockRoom(request.roomId());
 		validateAgainstRoom(room, request.attendees(), request.startTime(), request.endTime(), null);
@@ -48,10 +46,9 @@ public class BookingService {
 	}
 
 	@Transactional
-	public BookingResponse update(String userId, Long id, UpdateBookingRequest request) {
-		String organizer = requireOrganizer(userId);
+	public BookingResponse update(String username, boolean admin, Long id, UpdateBookingRequest request) {
 		validateTimeRange(request.startTime(), request.endTime());
-		Booking booking = loadModifiableBooking(id, organizer);
+		Booking booking = loadModifiableBooking(id, username, admin);
 		Room room = lockRoom(booking.getRoomId());
 		validateAgainstRoom(room, request.attendees(), request.startTime(), request.endTime(), booking.getId());
 		booking.update(request.title().trim(), request.attendees(), request.startTime(), request.endTime());
@@ -59,9 +56,8 @@ public class BookingService {
 	}
 
 	@Transactional
-	public BookingResponse cancel(String userId, Long id) {
-		String organizer = requireOrganizer(userId);
-		Booking booking = loadModifiableBooking(id, organizer);
+	public BookingResponse cancel(String username, boolean admin, Long id) {
+		Booking booking = loadModifiableBooking(id, username, admin);
 		booking.cancel();
 		return BookingResponse.from(booking);
 	}
@@ -76,16 +72,6 @@ public class BookingService {
 		return bookingRepository
 				.findSchedule(roomId, BookingStatus.BOOKED, date.atStartOfDay(), date.plusDays(1).atStartOfDay())
 				.stream().map(BookingResponse::from).toList();
-	}
-
-	// Người đặt lấy từ header X-User-Id: bắt buộc có và không quá dài
-	private String requireOrganizer(String userId) {
-		String organizer = userId == null ? "" : userId.trim();
-		if (organizer.isEmpty() || organizer.length() > MAX_ORGANIZER_LENGTH) {
-			throw new BusinessException(ErrorCode.INVALID_INPUT,
-					"X-User-Id is blank or longer than " + MAX_ORGANIZER_LENGTH + " characters");
-		}
-		return organizer;
 	}
 
 	private void validateTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
@@ -109,14 +95,14 @@ public class BookingService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Room " + roomId + " does not exist"));
 	}
 
-	// Lấy lượt đặt (đã khóa dòng) để sửa/hủy: chỉ người đặt mới được sửa/hủy (BR7),
+	// Lấy lượt đặt (đã khóa dòng) để sửa/hủy: chỉ người đặt hoặc ADMIN được sửa/hủy (BR7),
 	// và không sửa/hủy lượt đã hủy hoặc đã bắt đầu (BR8)
-	private Booking loadModifiableBooking(Long id, String organizer) {
+	private Booking loadModifiableBooking(Long id, String username, boolean admin) {
 		Booking booking = bookingRepository.findByIdForUpdate(id)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Booking " + id + " does not exist"));
-		if (!booking.getOrganizer().equals(organizer)) {
+		if (!admin && !booking.getOrganizer().equals(username)) {
 			throw new BusinessException(ErrorCode.PERMISSION_DENIED,
-					"User '" + organizer + "' is not the organizer of booking " + id);
+					"User '" + username + "' is not the organizer of booking " + id);
 		}
 		if (booking.getStatus() == BookingStatus.CANCELLED) {
 			throw new BusinessException(ErrorCode.BOOKING_NOT_MODIFIABLE, "Booking " + id + " is already cancelled");

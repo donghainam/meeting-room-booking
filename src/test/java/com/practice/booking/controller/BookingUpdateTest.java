@@ -23,6 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.practice.booking.TestTokens;
 import com.practice.booking.entity.Booking;
 import com.practice.booking.entity.Room;
 import com.practice.booking.repository.BookingRepository;
@@ -36,6 +37,9 @@ class BookingUpdateTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private TestTokens tokens;
 
 	@Autowired
 	private RoomRepository roomRepository;
@@ -73,7 +77,7 @@ class BookingUpdateTest {
 	private ResultActions update(String userId, Long id, String json) throws Exception {
 		var request = put("/api/bookings/" + id).contentType(MediaType.APPLICATION_JSON).content(json);
 		if (userId != null) {
-			request.header("X-User-Id", userId);
+			request.header("Authorization", tokens.bearer(userId));
 		}
 		return mockMvc.perform(request);
 	}
@@ -100,11 +104,11 @@ class BookingUpdateTest {
 	}
 
 	@Test
-	void a4_missingUserId_returns90() throws Exception {
+	void a4_noToken_returns80() throws Exception {
 		Long id = existingBooking(at("09:00:00"), at("10:00:00"));
 		update(null, id, body("Sync", 5, at("09:00:00"), at("10:00:00")))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.code").value("90"));
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("80"));
 	}
 
 	@Test
@@ -262,6 +266,15 @@ class BookingUpdateTest {
 		executor.shutdown();
 		assertEquals(1, ok);
 		assertEquals(1, conflict);
+	}
+
+	@Test
+	void br7_adminCanUpdateOthersBooking() throws Exception {
+		Long id = existingBooking(at("09:00:00"), at("10:00:00"));
+		update("admin", id, body("By admin", 5, at("11:00:00"), at("12:00:00")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.organizer").value("alice"))
+				.andExpect(jsonPath("$.data.title").value("By admin"));
 	}
 
 }

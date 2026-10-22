@@ -22,6 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.practice.booking.TestTokens;
 import com.practice.booking.entity.Room;
 import com.practice.booking.repository.BookingRepository;
 import com.practice.booking.repository.RoomRepository;
@@ -34,6 +35,9 @@ class BookingControllerTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private TestTokens tokens;
 
 	@Autowired
 	private RoomRepository roomRepository;
@@ -65,7 +69,7 @@ class BookingControllerTest {
 	private ResultActions book(String userId, String json) throws Exception {
 		var request = post("/api/bookings").contentType(MediaType.APPLICATION_JSON).content(json);
 		if (userId != null) {
-			request.header("X-User-Id", userId);
+			request.header("Authorization", tokens.bearer(userId));
 		}
 		return mockMvc.perform(request);
 	}
@@ -90,26 +94,10 @@ class BookingControllerTest {
 	}
 
 	@Test
-	void a3_missingUserId_returns90() throws Exception {
+	void a3_noToken_returns80() throws Exception {
 		book(null, body(roomId, "Sync", 5, at("09:00:00"), at("10:00:00")))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.code").value("90"));
-	}
-
-	@Test
-	void a3_blankUserId_returns90() throws Exception {
-		book("   ", body(roomId, "Sync", 5, at("09:00:00"), at("10:00:00")))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.code").value("90"));
-	}
-
-	@Test
-	void a3_userIdLongerThan100_returns90() throws Exception {
-		book("u".repeat(101), body(roomId, "Sync", 5, at("09:00:00"), at("10:00:00")))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.code").value("90"));
-		book("u".repeat(100), body(roomId, "Sync", 5, at("09:00:00"), at("10:00:00")))
-				.andExpect(status().isOk());
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("80"));
 	}
 
 	@Test

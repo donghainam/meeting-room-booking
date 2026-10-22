@@ -1,10 +1,10 @@
-# SRS — Meeting Room Booking (v1.2)
+# SRS — Meeting Room Booking (v1.3)
 
 ## 1. Mục tiêu
 Nhân viên đặt phòng họp; không để hai nhóm trùng phòng, trùng giờ. Admin quản lý phòng và người dùng.
 
 ## 2. Đối tượng dữ liệu
-Quy ước: **bắt buộc** = không null, String không rỗng. Mọi String (trừ `password`) được bỏ khoảng trắng đầu/cuối trước khi kiểm tra.
+Quy ước: **bắt buộc** = không null, String không rỗng. Mọi String (trừ `password`) được bỏ khoảng trắng đầu/cuối trước khi kiểm tra. Trường thừa trong body bị bỏ qua.
 
 ### User
 | Field | Kiểu | Ràng buộc |
@@ -28,14 +28,15 @@ Quy ước: **bắt buộc** = không null, String không rỗng. Mọi String (
 | id | Long | tự sinh |
 | roomId | Long | bắt buộc, phòng phải tồn tại, không đổi được |
 | title | String | bắt buộc, ≤ 200 ký tự |
-| organizer | String | `username` của người đăng nhập (lấy từ token, client không gửi) || attendees | Integer | bắt buộc, ≥ 1 |
+| organizer | String | `username` của người đăng nhập (lấy từ token, client không gửi) |
+| attendees | Integer | bắt buộc, ≥ 1 |
 | startTime | DateTime | bắt buộc |
 | endTime | DateTime | bắt buộc |
 | status | Enum | `BOOKED` khi tạo, `CANCELLED` khi hủy |
 
 ## 3. Phân quyền
 
-- Mọi API trừ U0 cần header `Authorization: Bearer <token>`. Thiếu, sai, hết hạn token → 80.
+- Mọi API trừ U0 cần header `Authorization: Bearer <token>`. Thiếu, sai scheme, sai, hết hạn token → 80 (kể cả URL không tồn tại).
 - Role không đủ quyền → 92.
 
 | Mã | Tên API | Method | Path | Quyền |
@@ -51,18 +52,17 @@ Quy ước: **bắt buộc** = không null, String không rỗng. Mọi String (
 | A6 | Xem lịch phòng theo ngày | GET | `/api/bookings?roomId=&date=` | ADMIN, USER |
 
 ### Tài khoản admin mặc định
-- Khi khởi động, nếu chưa có user `admin` thì tạo `admin` / role `ADMIN`, mật khẩu lấy từ cấu hình `app.admin.password` (mặc định `admin`).
-- Mật khẩu này không áp luật 8–72 ký tự.
-- Mật khẩu vẫn là `admin` → log `WARN` khi khởi động: "Default admin password in use".
+- Khi khởi động, nếu chưa có user `admin` thì tạo `admin` / `ADMIN`, mật khẩu lấy từ `app.admin.password` (mặc định `admin`, không áp luật 8–72 ký tự).
+- Mật khẩu vẫn là `admin` → log `WARN`: "Default admin password in use".
 
 ## 4. API
 
-- Thành công: HTTP 200, khung D2. `data` là đối tượng vừa tạo/sửa (U1, A1, A3–A5) hoặc mảng, có thể rỗng (U2, A2, A6).
+- Thành công: HTTP 200, khung D2. `data` là đối tượng vừa tạo/sửa (U1, A1, A3–A5), token (U0) hoặc mảng, có thể rỗng (U2, A2, A6).
 - **U0 Đăng nhập**:
-  - Body: `{ "username": "...", "password": "..." }`.
+  - Body: `{ "username": "...", "password": "..." }`. `username` không phân biệt hoa/thường.
   - Trả `data`: `{ "accessToken": "...", "tokenType": "Bearer", "expiresIn": 3600 }` (giây).
-  - Sai username hoặc password → 80; không tiết lộ sai trường nào.
-- **U1 Tạo người dùng**: body `{ "username", "password", "role" }`, `role` không gửi thì là `USER` (được tạo cả `ADMIN`). Trùng username → 81. Trả `{ id, username, role }`.
+  - Thiếu, để trống hoặc sai username/password (kể cả password quá 72 byte) → 80; không tiết lộ sai trường nào.
+- **U1 Tạo người dùng**: body `{ "username", "password", "role" }`, `role` không gửi thì là `USER` (được tạo cả `ADMIN`), giá trị khác → 90. Trùng username → 81. Trả `{ id, username, role }`.
 - **U2 Xem danh sách người dùng**: trả `[{ id, username, role }]`, sắp theo `id` tăng dần.
 - **A2 Xem danh sách phòng**: sắp theo `id` tăng dần.
 - **A4 Sửa lượt đặt**: gửi đủ `title`, `attendees`, `startTime`, `endTime` (thay toàn bộ).
@@ -113,7 +113,7 @@ Ví dụ: user khác hủy lượt đã hủy → 92, vì BR7 đứng trước B
 
 | Mã | HTTP | Message | Khi nào |
 |---|---|---|---|
-| 80 | 401 | Unauthorized | Thiếu/sai/hết hạn token; đăng nhập sai |
+| 80 | 401 | Unauthorized | Thiếu/sai/hết hạn token; đăng nhập sai, thiếu hoặc để trống username/password |
 | 81 | 409 | Username already exists | Trùng username (kể cả gửi đồng thời) |
 | 90 | 400 | Invalid data input. Please try again | Thiếu/sai trường, sai định dạng, JSON hỏng, thiếu param, BR1 Giờ kết thúc sau giờ bắt đầu, BR3 Tối đa 4 giờ |
 | 91 | 404 | Resource not found | Không thấy phòng / lượt đặt |
@@ -127,7 +127,7 @@ Ví dụ: user khác hủy lượt đã hủy → 92, vì BR7 đứng trước B
 | 99 | 500 | System error. Please try again later | Lỗi ngoài dự kiến |
 
 - Message cố định theo bảng.
-- URL không tồn tại: HTTP 404, body rỗng (không theo D2).
+- URL không tồn tại: có token hợp lệ → HTTP 404, body rỗng (không theo D2); không có → 80.
 
 Logging:
 - 80–98: `WARN` một dòng (mã + path + lý do), không stacktrace. Lỗi 90 chỉ log tên trường/header/param, không log giá trị client gửi.
@@ -149,7 +149,7 @@ Refresh token, đăng xuất/thu hồi token, đổi mật khẩu, khóa/xóa/s�
 - **D5 — Lưu trữ**: H2 in-memory, mất dữ liệu khi restart (user tạo thêm cũng mất; admin mặc định được tạo lại).
 - **D6 — Xác thực**: JWT ký HS256, hạn 1 giờ, payload gồm `sub` (username) và `role`.
   - Secret lấy từ cấu hình `app.jwt.secret` (≥ 32 byte); không commit secret thật.
-  - Dùng `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server` (thư viện chính thức của Spring, không cần thư viện JWT bên thứ ba).
+  - Dùng `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server` (không cần thư viện JWT bên thứ ba).
   - Token còn hạn nhưng user không còn tồn tại → 80.
 - **D7 — Mật khẩu**: băm bằng BCrypt.
 
@@ -159,3 +159,4 @@ Refresh token, đăng xuất/thu hồi token, đổi mật khẩu, khóa/xóa/s�
 | 1.0 | 2026-10-21 | Bản duyệt đầu tiên |
 | 1.1 | 2026-10-22 | Đồng bộ từ code A1–A6; thêm thứ tự kiểm tra, D4, D5; đặt tên cho API và BR; rút gọn câu chữ |
 | 1.2 | 2026-10-22 | Phân quyền ADMIN/USER, đăng nhập JWT (U0), quản lý user (U1, U2), admin mặc định; bỏ `X-User-Id`; BR7 cho phép admin; mã lỗi 80, 81; D6, D7 |
+| 1.3 | 2026-10-22 | Tách dòng `attendees`; làm rõ: U0 thiếu/trống/quá dài → 80, `role` sai → 90, trường thừa bị bỏ qua, URL lạ không token → 80, sai scheme Bearer → 80; rút gọn câu chữ |

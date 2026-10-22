@@ -37,6 +37,22 @@ Chạy test:
 
 Hiện chỉ có một test kiểm tra context khởi động được (`MeetingRoomBookingApplicationTests`).
 
+## Chạy frontend
+
+Frontend (React + Vite + TypeScript) nằm ở `frontend/`, hiện có đầy đủ các màn hình theo SRS: đăng nhập, danh sách/tạo phòng, lịch phòng theo ngày kèm đặt/sửa/hủy, và quản lý người dùng cho ADMIN (U0–U2, A1–A6). Cần Node.js 20+.
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:5173
+npm test         # vitest
+npm run build
+```
+
+- Backend phải chạy ở port 8082; dev server proxy `/api` sang đó nên không cần CORS. Port 8082 đang bị chiếm thì chạy backend ở cổng khác và đặt `BACKEND_URL`, ví dụ `$env:BACKEND_URL="http://localhost:8083"; npm run dev` (PowerShell).
+- Đăng nhập bằng tài khoản mặc định `admin` / `admin` (ADMIN thấy form Tạo phòng, USER thì không).
+- Token lưu ở `sessionStorage`, mất khi đóng tab.
+
 ## Tính năng dự kiến
 
 Chi tiết đầy đủ ở [docs/SRS.md](docs/SRS.md).
@@ -71,6 +87,7 @@ meeting-room-booking/
 │   └── MeetingRoomBookingApplication.java
 ├── src/main/resources/application.properties
 ├── src/test/java/com/practice/booking/
+├── frontend/                        # React + Vite + TypeScript
 └── pom.xml
 ```
 

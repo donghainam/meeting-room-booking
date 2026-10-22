@@ -1,0 +1,30 @@
+/* Token lấy từ anydesign-awwwards/design-tokens.json (ước lượng từ screenshot, mức tin cậy ⚠️) */
+:root {
+  --color-primary: #232625;
+  --color-surface: #f8f8f8;
+  --color-surface-hero: #e9e9e9;
+  --color-surface-input: #dcdcdc;
+  --color-text-primary: #232625;
+  --color-text-muted: #4c4b4b;
+  --color-border: #232625;
+  --color-border-dotted: #a29d97;
+  /* Không lấy từ design: Awwwards không có màu feedback, nên đây là màu lỗi tự thêm (tương phản ~6:1 trên nền surface) */
+  --color-error: #b3261e;
+
+  --font-family: Inter, Helvetica, Arial, sans-serif;
+  --font-size-display: clamp(56px, 11vw, 140px);
+  --font-size-heading: 32px;
+  --font-size-card-title: 26px;
+  --font-size-body: 18px;
+  --font-size-ui: 17px;
+
+  --space-8: 8px;
+  --space-16: 16px;
+  --space-25: 25px;
+  --space-31: 31px;
+  --space-64: 64px;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 20px;
+}
